@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <pthread.h>
+
 
 double c_x_min;
 double c_x_max;
@@ -14,6 +16,9 @@ int iteration_max = 200;
 
 int image_size;
 unsigned char **image_buffer;
+
+unsigned char ***image_collection;
+
 
 int i_x_max;
 int i_y_max;
@@ -40,13 +45,20 @@ int colors[17][3] = {
                         {16, 16, 16},
                     };
 
-void allocate_image_buffer(){
-    int rgb_size = 3;
-    image_buffer = (unsigned char **) malloc(sizeof(unsigned char *) * image_buffer_size);
+//Numero de threads como argv[6] para iterarmos via bash
+int nthreads = 1;
 
-    for(int i = 0; i < image_buffer_size; i++){
-        image_buffer[i] = (unsigned char *) malloc(sizeof(unsigned char) * rgb_size);
-    };
+// void allocate_image_buffer(){
+//     int rgb_size = 3;
+//     image_buffer = (unsigned char **) malloc(sizeof(unsigned char *) * image_buffer_size);
+//
+//     for(int i = 0; i < image_buffer_size; i++){
+//         image_buffer[i] = (unsigned char *) malloc(sizeof(unsigned char) * rgb_size);
+//     };
+// };
+
+void allocate_image_collection(){
+    image_collection = (unsigned char ***) malloc(sizeof(unsigned char ***) * nthreads);
 };
 
 void init(int argc, char *argv[]){
@@ -75,22 +87,22 @@ void init(int argc, char *argv[]){
     };
 };
 
-void update_rgb_buffer(int iteration, int x, int y){
-    int color;
-
-    if(iteration == iteration_max){
-        image_buffer[(i_y_max * y) + x][0] = colors[gradient_size][0];
-        image_buffer[(i_y_max * y) + x][1] = colors[gradient_size][1];
-        image_buffer[(i_y_max * y) + x][2] = colors[gradient_size][2];
-    }
-    else{
-        color = iteration % gradient_size;
-
-        image_buffer[(i_y_max * y) + x][0] = colors[color][0];
-        image_buffer[(i_y_max * y) + x][1] = colors[color][1];
-        image_buffer[(i_y_max * y) + x][2] = colors[color][2];
-    };
-};
+// void update_rgb_buffer(int iteration, int x, int y){
+//     int color;
+//
+//     if(iteration == iteration_max){
+//         image_buffer[(i_y_max * y) + x][0] = colors[gradient_size][0];
+//         image_buffer[(i_y_max * y) + x][1] = colors[gradient_size][1];
+//         image_buffer[(i_y_max * y) + x][2] = colors[gradient_size][2];
+//     }
+//     else{
+//         color = iteration % gradient_size;
+//
+//         image_buffer[(i_y_max * y) + x][0] = colors[color][0];
+//         image_buffer[(i_y_max * y) + x][1] = colors[color][1];
+//         image_buffer[(i_y_max * y) + x][2] = colors[color][2];
+//     };
+// };
 
 void write_to_file(){
     FILE * file;
@@ -104,14 +116,19 @@ void write_to_file(){
     fprintf(file, "P6\n %s\n %d\n %d\n %d\n", comment,
             i_x_max, i_y_max, max_color_component_value);
 
+    int buffer_division;
+    if(i_y_max%nthreads != 0) buffer_division = (image_buffer_size/nthreads) + 1;
+    else buffer_division = (image_buffer_size/nthreads);
+
     for(int i = 0; i < image_buffer_size; i++){
-        fwrite(image_buffer[i], 1 , 3, file);
+        fwrite(image_collection[i/buffer_division][i%buffer_division], 1 , 3, file);
     };
 
     fclose(file);
 };
 
-void compute_mandelbrot(){
+// Computacao de cada threads com buffer proprio
+void *buffer_updater (void * args) {
     double z_x;
     double z_y;
     double z_x_squared;
@@ -122,17 +139,44 @@ void compute_mandelbrot(){
     int i_x;
     int i_y;
 
+    long tid = (long) args;
+    //printf("foi thread = %ld\n",tid);
+
     double c_x;
     double c_y;
+    unsigned char ** image_buffer_thread;
 
-    for(i_y = 0; i_y < i_y_max; i_y++){
+
+
+    // Variavel que coordena a divisão do tamanho dos buffers e divisao de trabalho.
+    int buffer_division;
+    if(i_y_max%nthreads != 0) buffer_division = (image_buffer_size/nthreads) + 1;
+    else buffer_division = (image_buffer_size/nthreads);
+
+    // Trecho abaixo realiza allocação nos moldes do antigo allocate_image_buffer()
+    // Só que para buffers menores um para cada thread.
+    int rgb_size = 3;
+    image_buffer_thread = (unsigned char **) malloc(sizeof(unsigned char *) * buffer_division);
+    for(int i = 0; i < buffer_division; i++){
+        image_buffer_thread[i] = (unsigned char *) malloc(sizeof(unsigned char) * rgb_size);
+    };
+
+    // Ajuste inicial do x, pois uma thread pode comecar onde a ultima parou em um x diferente
+    i_x = (buffer_division* tid)%i_y_max;
+
+    for(i_y = tid*(buffer_division/i_y_max); i_y <= ((tid + 1)*buffer_division)/i_y_max && i_y < i_y_max ; i_y++){
         c_y = c_y_min + i_y * pixel_height;
 
-        if(fabs(c_y) < pixel_height / 2){
+        if(fabs(c_y) < pixel_height / 2) {
             c_y = 0.0;
         };
 
-        for(i_x = 0; i_x < i_x_max; i_x++){
+        // x máximo para termino da divisao de trabalho.
+        int x_division;
+        if (i_y == ((tid + 1)*buffer_division)/i_y_max) x_division = ((tid + 1)*buffer_division)%i_x_max;
+        else x_division = i_x_max ;
+
+        for(; i_x < i_x_max && i_x < x_division; i_x++){
             c_x         = c_x_min + i_x * pixel_width;
 
             z_x         = 0.0;
@@ -152,15 +196,64 @@ void compute_mandelbrot(){
                 z_y_squared = z_y * z_y;
             };
 
-            update_rgb_buffer(iteration, i_x, i_y);
+            // Á propria threads realiza o update de buffers
+            // update_rgb_buffer(iteration, i_x, i_y);
+
+            int color;
+            if(iteration == iteration_max){
+
+                image_buffer_thread[((i_y_max * i_y) + i_x)%buffer_division][0] = colors[gradient_size][0];
+                image_buffer_thread[((i_y_max * i_y) + i_x)%buffer_division][1] = colors[gradient_size][1];
+                image_buffer_thread[((i_y_max * i_y) + i_x)%buffer_division][2] = colors[gradient_size][2];
+            }
+            else{
+
+                color = iteration % gradient_size;
+
+                image_buffer_thread[((i_y_max * i_y) + i_x)%buffer_division][0] = colors[color][0];
+                image_buffer_thread[((i_y_max * i_y) + i_x)%buffer_division][1] = colors[color][1];
+                image_buffer_thread[((i_y_max * i_y) + i_x)%buffer_division][2] = colors[color][2];
+            };
         };
+        // Somente no inicio de cada thread x pode ser diferente de zero, devido a lugar
+        // que a ultima parou.
+        i_x = 0;
     };
+    //Anexa o buffer da thread no array de buffers.
+    image_collection[tid] = image_buffer_thread;
+    pthread_exit(NULL);
+}
+
+void compute_mandelbrot(){
+    pthread_t thread[nthreads];
+
+    for (long t = 0; t < nthreads; t++) {
+        if (pthread_create(&thread[t], NULL, buffer_updater, (void*) t)) {
+            printf("\n ERROR creating thread %ld\n", t);
+            exit(1);
+        }
+    }
+
+    for (int t = 0; t < nthreads; t++) {
+        if (pthread_join(thread[t], NULL)) {
+              printf("\n ERROR joining thread %d\n", t);
+              exit(1);
+        }
+    }
 };
 
 int main(int argc, char *argv[]){
+
+    // Recebe numero de threads, caso não há argv[6]: threads = 1
+    if(argc > 6) nthreads = atoi(argv[6]);
+
     init(argc, argv);
 
-    allocate_image_buffer();
+    // Não é mais necessário devido a cada thread ter seu buffer.
+    // allocate_image_buffer();
+
+    // Cria um array de ponteiros para cada buffer criado ser anexado
+    allocate_image_collection();
 
     compute_mandelbrot();
 
