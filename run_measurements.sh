@@ -11,7 +11,7 @@ SIZE=$INITIAL_SIZE
 THREADS=$INITIAL_NUM_THREADS
 
 NAMES=('mandelbrot_seq')
-NAMESPARALLEL=('mandelbrot_pth' 'mandelbrot_omp')
+NAMESPARALLEL=('mandelbrot_pth' 'mandelbrot_omp' 'mandelbrot_omp_alt')
 
 make
 mkdir results
