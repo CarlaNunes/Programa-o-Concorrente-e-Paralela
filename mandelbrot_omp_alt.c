@@ -2,6 +2,12 @@
 #include <stdlib.h>
 #include <math.h>
 #include <omp.h>
+<<<<<<< main
+#include <time.h>
+
+#define MINI_DEBUG 1
+=======
+>>>>>>> main
 
 //to-do: set allocate_image_collection nthreads to half of threads,
 //		 set compute_mandelbrot nthreads to half of threads,
@@ -50,6 +56,17 @@ int colors[17][3] = {
 int nthreads = 1;
 int nthread_chunk = 1;
 
+<<<<<<< main
+double elapsedTime(struct timespec a,struct timespec b)
+{
+    long seconds = b.tv_sec - a.tv_sec;
+    long nanoseconds = b.tv_nsec - a.tv_nsec;
+    double elapsed = seconds + (double)nanoseconds/1000000000;
+    return elapsed;
+}
+
+=======
+>>>>>>> main
 void allocate_image_collection(int threads){
     image_collection = (unsigned char ***) malloc(sizeof(unsigned char ***) * threads);
 };
@@ -85,6 +102,17 @@ void write_to_file(){
     char * filename               = "output.ppm";
     char * comment                = "# ";
 
+<<<<<<< main
+    struct timespec ts, tf;
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+    }
+
+=======
+>>>>>>> main
     int max_color_component_value = 255;
 
     file = fopen(filename,"wb");
@@ -104,9 +132,29 @@ void write_to_file(){
     };
 
     fclose(file);
+<<<<<<< main
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &tf) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+        printf(" tempo de I|O: %4lfs\n", elapsedTime(ts, tf));
+    }
 };
 
 void compute_mandelbrot(int nthread_chunk){
+    struct timespec ts, tf;
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+    }
+=======
+};
+
+void compute_mandelbrot(int nthread_chunk){
+>>>>>>> main
 
     #pragma omp parallel num_threads(nthread_chunk)
     {
@@ -143,11 +191,19 @@ void compute_mandelbrot(int nthread_chunk){
         i_x                = (buffer_division * tid)%i_y_max;
 
 		int pixels_threads = nthread_chunk - nthread_chunk;
+<<<<<<< main
+
+		int i_y_init 	   = tid*(buffer_division/i_y_max);
+
+		int i_y_thread_max = ((tid + 1)*buffer_division)/i_y_max;
+
+=======
 		 
 		int i_y_init 	   = tid*(buffer_division/i_y_max);
 
 		int i_y_thread_max = ((tid + 1)*buffer_division)/i_y_max;
 		 
+>>>>>>> main
 		/*
 	 	#pragma omp parallel for num_threads(pixels_threads) \
 			shared(image_buffer_thread, tid) \
@@ -212,6 +268,16 @@ void compute_mandelbrot(int nthread_chunk){
 			image_collection[tid] = image_buffer_thread;
 		};
 	};
+<<<<<<< main
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &tf) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+        printf(" tempo de pragma: %4lfs\n", elapsedTime(ts, tf));
+    }
+=======
+>>>>>>> main
 };
 
 int main(int argc, char *argv[]){
@@ -220,9 +286,15 @@ int main(int argc, char *argv[]){
     if(argc > 6) nthreads = atoi(argv[6]);
 
     init(argc, argv);
+<<<<<<< main
+
+	nthread_chunk = (nthreads % 2 == 0) ? nthreads/2 : 1 + nthreads/2 ;
+
+=======
 	 
 	nthread_chunk = (nthreads % 2 == 0) ? nthreads/2 : 1 + nthreads/2 ;
 	 
+>>>>>>> main
     // Cria um array de ponteiros para cada buffer criado ser anexado
     allocate_image_collection(nthread_chunk);
 
