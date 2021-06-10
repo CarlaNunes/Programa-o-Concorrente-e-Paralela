@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <math.h>
 #include <pthread.h>
+#include <time.h>
 
+#define MINI_DEBUG 1
 
 double c_x_min;
 double c_x_max;
@@ -48,14 +50,13 @@ int colors[17][3] = {
 //Numero de threads como argv[6] para iterarmos via bash
 int nthreads = 1;
 
-// void allocate_image_buffer(){
-//     int rgb_size = 3;
-//     image_buffer = (unsigned char **) malloc(sizeof(unsigned char *) * image_buffer_size);
-//
-//     for(int i = 0; i < image_buffer_size; i++){
-//         image_buffer[i] = (unsigned char *) malloc(sizeof(unsigned char) * rgb_size);
-//     };
-// };
+double elapsedTime(struct timespec a,struct timespec b)
+{
+    long seconds = b.tv_sec - a.tv_sec;
+    long nanoseconds = b.tv_nsec - a.tv_nsec;
+    double elapsed = seconds + (double)nanoseconds/1000000000;
+    return elapsed;
+}
 
 void allocate_image_collection(){
     image_collection = (unsigned char ***) malloc(sizeof(unsigned char ***) * nthreads);
@@ -87,27 +88,18 @@ void init(int argc, char *argv[]){
     };
 };
 
-// void update_rgb_buffer(int iteration, int x, int y){
-//     int color;
-//
-//     if(iteration == iteration_max){
-//         image_buffer[(i_y_max * y) + x][0] = colors[gradient_size][0];
-//         image_buffer[(i_y_max * y) + x][1] = colors[gradient_size][1];
-//         image_buffer[(i_y_max * y) + x][2] = colors[gradient_size][2];
-//     }
-//     else{
-//         color = iteration % gradient_size;
-//
-//         image_buffer[(i_y_max * y) + x][0] = colors[color][0];
-//         image_buffer[(i_y_max * y) + x][1] = colors[color][1];
-//         image_buffer[(i_y_max * y) + x][2] = colors[color][2];
-//     };
-// };
-
 void write_to_file(){
     FILE * file;
     char * filename               = "output.ppm";
     char * comment                = "# ";
+
+    struct timespec ts, tf;
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+    }
 
     int max_color_component_value = 255;
 
@@ -125,6 +117,13 @@ void write_to_file(){
     };
 
     fclose(file);
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &tf) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+        printf("%4lf ", elapsedTime(ts, tf));
+    }
 };
 
 // Computacao de cada threads com buffer proprio
@@ -140,7 +139,6 @@ void *buffer_updater (void * args) {
     int i_y;
 
     long tid = (long) args;
-    //printf("foi thread = %ld\n",tid);
 
     double c_x;
     double c_y;
@@ -226,6 +224,13 @@ void *buffer_updater (void * args) {
 
 void compute_mandelbrot(){
     pthread_t thread[nthreads];
+    struct timespec ts, tf;
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+    }
 
     for (long t = 0; t < nthreads; t++) {
         if (pthread_create(&thread[t], NULL, buffer_updater, (void*) t)) {
@@ -240,17 +245,31 @@ void compute_mandelbrot(){
               exit(1);
         }
     }
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &tf) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+        printf("%4lf ", elapsedTime(ts, tf));
+    }
 };
 
 int main(int argc, char *argv[]){
 
+    struct timespec ts, tf;
+    if (MINI_DEBUG) {
+        printf("pth ");
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+    }
+
     // Recebe numero de threads, caso não há argv[6]: threads = 1
     if(argc > 6) nthreads = atoi(argv[6]);
 
+    if(MINI_DEBUG)printf("%d %d ",nthreads, atoi(argv[5]));
     init(argc, argv);
-
-    // Não é mais necessário devido a cada thread ter seu buffer.
-    // allocate_image_buffer();
 
     // Cria um array de ponteiros para cada buffer criado ser anexado
     allocate_image_collection();
@@ -259,5 +278,12 @@ int main(int argc, char *argv[]){
 
     write_to_file();
 
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &tf) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+        printf("%4lf\n", elapsedTime(ts, tf));
+    }
     return 0;
 };

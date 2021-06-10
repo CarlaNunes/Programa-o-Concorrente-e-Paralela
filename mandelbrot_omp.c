@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <math.h>
 #include <omp.h>
+#include <time.h>
+
+#define MINI_DEBUG 1
 
 double c_x_min;
 double c_x_max;
@@ -45,6 +48,14 @@ int colors[17][3] = {
 // Numero de threads como argv[6] para iterarmos via bash
 int nthreads = 1;
 
+double elapsedTime(struct timespec a,struct timespec b)
+{
+    long seconds = b.tv_sec - a.tv_sec;
+    long nanoseconds = b.tv_nsec - a.tv_nsec;
+    double elapsed = seconds + (double)nanoseconds/1000000000;
+    return elapsed;
+}
+
 void allocate_image_collection(){
     image_collection = (unsigned char ***) malloc(sizeof(unsigned char ***) * nthreads);
 };
@@ -76,6 +87,15 @@ void init(int argc, char *argv[]){
 };
 
 void write_to_file(){
+
+    struct timespec ts, tf;
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+    }
+
     FILE * file;
     char * filename               = "output.ppm";
     char * comment                = "# ";
@@ -92,14 +112,30 @@ void write_to_file(){
     if(i_y_max%nthreads != 0) buffer_division = (image_buffer_size/nthreads) + 1;
     else buffer_division = (image_buffer_size/nthreads);
 
-    for(int i = 0; i < image_buffer_size; i++){
+    for(int i = 0; i < image_buffer_size; i++) {
         fwrite(image_collection[i/buffer_division][i%buffer_division], 1 , 3, file);
     };
 
     fclose(file);
+
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &tf) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+        printf("%4lf ", elapsedTime(ts, tf));
+    }
 };
 
 void compute_mandelbrot(){
+
+    struct timespec ts, tf;
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+    }
 
     #pragma omp parallel num_threads(nthreads)
     {
@@ -190,13 +226,31 @@ void compute_mandelbrot(){
         //Anexa o buffer da thread no array de buffers.
         image_collection[tid] = image_buffer_thread;
     }
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &tf) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+        printf("%4lf ", elapsedTime(ts, tf));
+    }
 };
 
+
 int main(int argc, char *argv[]){
+
+    struct timespec ts, tf;
+    if (MINI_DEBUG) {
+        printf("omp ");
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+    }
 
     // Recebe numero de threads, caso não há argv[6]: threads = 1
     if(argc > 6) nthreads = atoi(argv[6]);
 
+    if(MINI_DEBUG)printf("%d %d ",nthreads, atoi(argv[5]));
     init(argc, argv);
 
     // Cria um array de ponteiros para cada buffer criado ser anexado
@@ -206,5 +260,12 @@ int main(int argc, char *argv[]){
 
     write_to_file();
 
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &tf) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+        printf("%4lf\n", elapsedTime(ts, tf));
+    }
     return 0;
 };

@@ -1,6 +1,11 @@
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <pthread.h>
+#include <time.h>
+
+#define MINI_DEBUG 1
 
 double c_x_min;
 double c_x_max;
@@ -39,6 +44,14 @@ int colors[17][3] = {
                         {106, 52, 3},
                         {16, 16, 16},
                     };
+
+double elapsedTime(struct timespec a,struct timespec b)
+{
+    long seconds = b.tv_sec - a.tv_sec;
+    long nanoseconds = b.tv_nsec - a.tv_nsec;
+    double elapsed = seconds + (double)nanoseconds/1000000000;
+    return elapsed;
+}
 
 void allocate_image_buffer(){
     int rgb_size = 3;
@@ -93,6 +106,15 @@ void update_rgb_buffer(int iteration, int x, int y){
 };
 
 void write_to_file(){
+
+    struct timespec ts, tf;
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+    }
+
     FILE * file;
     char * filename               = "output.ppm";
     char * comment                = "# ";
@@ -109,9 +131,25 @@ void write_to_file(){
     };
 
     fclose(file);
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &tf) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+        printf("%4lf ", elapsedTime(ts, tf));
+    }
 };
 
 void compute_mandelbrot(){
+
+    struct timespec ts, tf;
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+    }
+
     double z_x;
     double z_y;
     double z_x_squared;
@@ -155,9 +193,27 @@ void compute_mandelbrot(){
             update_rgb_buffer(iteration, i_x, i_y);
         };
     };
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &tf) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+        printf("%4lf ", elapsedTime(ts, tf));
+    }
 };
 
 int main(int argc, char *argv[]){
+
+    struct timespec ts, tf;
+    if (MINI_DEBUG) {
+        printf("seq ");
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+    }
+
+    if(MINI_DEBUG)printf("%d ", atoi(argv[5]));
     init(argc, argv);
 
     allocate_image_buffer();
@@ -165,6 +221,14 @@ int main(int argc, char *argv[]){
     compute_mandelbrot();
 
     write_to_file();
+
+    if (MINI_DEBUG) {
+        if (clock_gettime(CLOCK_MONOTONIC, &tf) == -1) {
+           perror("clock_gettime");
+           exit(EXIT_FAILURE);
+        }
+        printf("%4lf\n", elapsedTime(ts, tf));
+    }
 
     return 0;
 };
